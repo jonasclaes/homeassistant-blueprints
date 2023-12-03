@@ -1,0 +1,73 @@
+# | Button | Action            |
+# |--------|-------------------|
+# | On     | Turn light(s) on  |
+# | Off    | Turn light(s) off |
+
+blueprint:
+  name: ZHA - IKEA On/off remote for lights
+
+  description: >-
+    Control lights with an IKEA on/off remote, for use with [ZHA](https://www.home-assistant.io/integrations/zha/).
+
+  domain: automation
+
+  input:
+    remote:
+      name: Remote
+      description: IKEA remote to use
+      selector:
+        device:
+          integration: zha
+          manufacturer: IKEA of Sweden
+          model: TRADFRI on/off switch
+    light:
+      name: Light(s)
+      description: The light(s) to control
+      selector:
+        target:
+          entity:
+            domain: light
+
+mode: restart
+max_exceeded: silent
+
+trigger:
+  - platform: event
+    event_type: zha_event
+    event_data:
+      device_id: !input remote
+
+action:
+  - variables:
+      command: "{{ trigger.event.data.command }}"
+      cluster_id: "{{ trigger.event.data.cluster_id }}"
+      endpoint_id: "{{ trigger.event.data.endpoint_id }}"
+      args: "{{ trigger.event.data.args }}"
+
+  - choose:
+      # Short-press on the on button.
+      - conditions:
+          - condition: template
+            value_template: "{{ command == 'on' }}"
+          - condition: template
+            value_template: "{{ cluster_id == 6 }}"
+          - condition: template
+            value_template: "{{ endpoint_id == 1 }}"
+        sequence:
+          - service: light.turn_on
+            target: !input light
+      
+      # Short-press on the off button.
+      - conditions:
+          - condition: template
+            value_template: "{{ command == 'off' }}"
+          - condition: template
+            value_template: "{{ cluster_id == 6 }}"
+          - condition: template
+            value_template: "{{ endpoint_id == 1 }}"
+        sequence:
+          - service: light.turn_off
+            target: !input light
+
+    # Any other event will cancel the repeat loops.
+    default: []
