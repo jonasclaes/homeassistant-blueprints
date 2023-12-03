@@ -11,6 +11,8 @@ blueprint:
 
   domain: automation
 
+  author: Jonas Claes
+
   input:
     remote:
       name: Remote
