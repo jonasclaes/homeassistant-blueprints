@@ -1,7 +1,9 @@
-# | Button | Action            |
-# |--------|-------------------|
-# | On     | Turn light(s) on  |
-# | Off    | Turn light(s) off |
+# | Button          | Action            |
+# |-----------------|-------------------|
+# | Short-press on  | Turn light(s) on  |
+# | Short-press off | Turn light(s) off |
+# | Long-press on   | Dim light(s) up   |
+# | Long-press off  | Dim light(s) down |
 
 blueprint:
   name: ZHA - IKEA On/off remote for lights
@@ -16,7 +18,7 @@ blueprint:
   input:
     remote:
       name: Remote
-      description: IKEA remote to use
+      description: Which IKEA remote should be used?
       selector:
         device:
           integration: zha
@@ -24,11 +26,21 @@ blueprint:
           model: TRADFRI on/off switch
     light:
       name: Light(s)
-      description: The light(s) to control
+      description: Which light(s) should be controlled?
       selector:
         target:
           entity:
             domain: light
+    dim_step_delay:
+      name: Dim step delay
+      description: How much time should there be between each dim up/down step?
+      selector:
+        number:
+          min: 0
+          max: 1
+          step: 0.01
+          unit_of_measurement: seconds
+      default: 0.5
 
 mode: restart
 max_exceeded: silent
@@ -58,7 +70,9 @@ action:
         sequence:
           - service: light.turn_on
             target: !input light
-      
+            data:
+              transition: 0.5
+
       # Short-press on the off button.
       - conditions:
           - condition: template
@@ -70,6 +84,46 @@ action:
         sequence:
           - service: light.turn_off
             target: !input light
+            data:
+              transition: 0.5
+
+      # Long-press on the on button.
+      - conditions:
+          - condition: template
+            value_template: "{{ command == 'move_with_on_off' }}"
+          - condition: template
+            value_template: "{{ cluster_id == 8 }}"
+          - condition: template
+            value_template: "{{ endpoint_id == 1 }}"
+        sequence:
+          - repeat:
+              while: []
+              sequence:
+                - service: light.turn_on
+                  target: !input light
+                  data:
+                    brightness_step_pct: 5
+                    transition: !input dim_step_delay
+                - delay: !input dim_step_delay
+
+      # Long-press on the off button.
+      - conditions:
+          - condition: template
+            value_template: "{{ command == 'move' }}"
+          - condition: template
+            value_template: "{{ cluster_id == 8 }}"
+          - condition: template
+            value_template: "{{ endpoint_id == 1 }}"
+        sequence:
+          - repeat:
+              while: []
+              sequence:
+                - service: light.turn_on
+                  target: !input light
+                  data:
+                    brightness_step_pct: -5
+                    transition: !input dim_step_delay
+                - delay: !input dim_step_delay
 
     # Any other event will cancel the repeat loops.
     default: []
